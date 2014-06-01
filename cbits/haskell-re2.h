@@ -1,6 +1,7 @@
 #ifndef HASKELL_RE2_H
 #define HASKELL_RE2_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -40,7 +41,7 @@ const char *haskell_re2_pattern_input(re2::RE2 *regex);
 
 int haskell_re2_program_size(re2::RE2 *regex);
 
-void haskell_re2_quote_meta(const char *in, int in_len, char **out, int *out_len);
+void haskell_re2_quote_meta(const char *in, int in_len, char **out, size_t *out_len);
 
 char *haskell_re2_replace(re2::RE2 *regex, const char *input, const char *rewrite);
 

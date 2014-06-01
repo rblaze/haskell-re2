@@ -67,7 +67,7 @@ int haskell_re2_program_size(re2::RE2 *regex) {
 	return regex->ProgramSize();
 }
 
-void haskell_re2_quote_meta(const char *in, int in_len, char **out, int *out_len) {
+void haskell_re2_quote_meta(const char *in, int in_len, char **out, size_t *out_len) {
 	std::string quoted = re2::RE2::QuoteMeta(re2::StringPiece(in, in_len));
 	*out_len = quoted.size();
 	*out = static_cast<char*>(malloc(quoted.size()));
