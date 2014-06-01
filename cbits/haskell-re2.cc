@@ -5,12 +5,42 @@
 
 #include "re2/re2.h"
 
+namespace re2 {
+class RE2_Options : public RE2::Options {};
+}
+
 extern "C" {
 
-re2::RE2 *haskell_re2_compile_pattern(const char *input, int input_len) {
-	re2::RE2::Options opts;
-	opts.set_log_errors(false);
-	return new re2::RE2(re2::StringPiece(input, input_len), opts);
+re2::RE2_Options *haskell_re2_alloc_options() {
+	re2::RE2_Options* opts = new re2::RE2_Options();
+	opts->set_log_errors(false);
+	return opts;
+}
+
+void haskell_re2_free_options(re2::RE2_Options *opts) {
+	delete opts;
+}
+
+#define IMPL_SETOPT(optName, type) void haskell_re2_setopt_##optName(re2::RE2_Options *opts, type val) { \
+	opts->set_##optName(val); \
+}
+
+IMPL_SETOPT(posix_syntax, bool);
+IMPL_SETOPT(longest_match, bool);
+IMPL_SETOPT(max_mem, int64_t);
+IMPL_SETOPT(literal, bool);
+IMPL_SETOPT(never_nl, bool);
+IMPL_SETOPT(dot_nl, bool);
+IMPL_SETOPT(never_capture, bool);
+IMPL_SETOPT(case_sensitive, bool);
+IMPL_SETOPT(perl_classes, bool);
+IMPL_SETOPT(word_boundary, bool);
+IMPL_SETOPT(one_line, bool);
+
+#undef IMPL_SETOPT
+
+re2::RE2 *haskell_re2_compile_pattern(re2::RE2_Options* opts, const char *input, int input_len) {
+	return new re2::RE2(re2::StringPiece(input, input_len), *opts);
 }
 
 void haskell_re2_delete_pattern(re2::RE2 *regex) {
@@ -23,6 +53,10 @@ const char *haskell_re2_error(re2::RE2 *regex) {
 		return NULL;
 	}
 	return err.c_str();
+}
+
+int haskell_re2_error_code(re2::RE2 *regex) {
+	return regex->error_code();
 }
 
 const char *haskell_re2_pattern_input(re2::RE2 *regex) {
