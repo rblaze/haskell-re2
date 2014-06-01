@@ -19,7 +19,7 @@ const char *haskell_re2_pattern_input(re2::RE2 *regex);
 
 int haskell_re2_program_size(re2::RE2 *regex);
 
-char *haskell_re2_quote_meta(const char *input);
+void haskell_re2_quote_meta(const char *in, int in_len, char **out, int *out_len);
 
 char *haskell_re2_replace(re2::RE2 *regex, const char *input, const char *rewrite);
 

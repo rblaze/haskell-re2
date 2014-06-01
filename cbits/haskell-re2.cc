@@ -33,11 +33,11 @@ int haskell_re2_program_size(re2::RE2 *regex) {
 	return regex->ProgramSize();
 }
 
-char *haskell_re2_quote_meta(const char *input) {
-	std::string quoted = re2::RE2::QuoteMeta(input);
-	char *out = (char*)malloc(quoted.size() + 1);
-	strcpy(out, quoted.c_str());
-	return out;
+void haskell_re2_quote_meta(const char *in, int in_len, char **out, int *out_len) {
+	std::string quoted = re2::RE2::QuoteMeta(re2::StringPiece(in, in_len));
+	*out_len = quoted.size();
+	*out = static_cast<char*>(malloc(quoted.size()));
+	memcpy(*out, quoted.c_str(), quoted.size());
 }
 
 char *haskell_re2_replace(re2::RE2 *regex, const char *input, const char *rewrite) {

@@ -18,6 +18,7 @@ tests = suite "re2"
 test_QuoteMeta :: Test
 test_QuoteMeta = assertions "quoteMeta" $ do
 	$expect (equal (RE2.quoteMeta (b "^foo$")) (b "\\^foo\\$"))
+	$expect (equal (RE2.quoteMeta (b "^f\NULoo$")) (b "\\^f\\x00oo\\$"))
 
 b :: String -> B.ByteString
 b = B.pack
