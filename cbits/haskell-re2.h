@@ -17,6 +17,7 @@ re2::RE2_Options *haskell_re2_alloc_options();
 
 void haskell_re2_free_options(re2::RE2_Options *opts);
 
+void haskell_re2_setopt_encoding(re2::RE2_Options *opts, int);
 void haskell_re2_setopt_posix_syntax(re2::RE2_Options *opts, bool);
 void haskell_re2_setopt_longest_match(re2::RE2_Options *opts, bool);
 void haskell_re2_setopt_max_mem(re2::RE2_Options *opts, int64_t);

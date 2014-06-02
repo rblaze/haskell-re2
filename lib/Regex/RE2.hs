@@ -34,6 +34,9 @@ module Regex.RE2
 	, optionPerlClasses
 	, optionWordBoundary
 	, optionOneLine
+	
+	, Encoding(..)
+	, optionEncoding
 	) where
 
 import           Control.Exception (bracket, mask_)
@@ -87,8 +90,14 @@ errorCode (Error x _) = x
 errorMessage :: Error -> String
 errorMessage (Error _ x) = x
 
+data Encoding
+	= EncodingUtf8
+	| EncodingLatin1
+	deriving (Eq, Show)
+
 data Options = Options
-	{ optionPosixSyntax :: Bool
+	{ optionEncoding :: Encoding
+	, optionPosixSyntax :: Bool
 	, optionLongestMatch :: Bool
 	, optionMaxMemory :: Int64
 	, optionLiteral :: Bool
@@ -105,7 +114,8 @@ data Options = Options
 
 defaultOptions :: Options
 defaultOptions = Options
-	{ optionPosixSyntax = False
+	{ optionEncoding = EncodingUtf8
+	, optionPosixSyntax = False
 	, optionLongestMatch = False
 	, optionMaxMemory = 8388608  -- 8 << 20
 	, optionLiteral = False
@@ -120,6 +130,9 @@ defaultOptions = Options
 
 withOptions :: Options -> (Ptr Options -> IO a) -> IO a
 withOptions opts io = bracket c_alloc_options c_free_options $ \ptr -> do
+	c_setopt_encoding ptr (case optionEncoding opts of
+		EncodingUtf8 -> 1
+		EncodingLatin1 -> 2)
 	c_setopt_posix_syntax ptr (optionPosixSyntax opts)
 	c_setopt_longest_match ptr (optionLongestMatch opts)
 	c_setopt_max_mem ptr (optionMaxMemory opts)
@@ -138,6 +151,9 @@ foreign import ccall unsafe "haskell-re2.h haskell_re2_alloc_options"
 
 foreign import ccall unsafe "haskell-re2.h haskell_re2_free_options"
 	c_free_options :: Ptr Options -> IO ()
+
+foreign import ccall unsafe "haskell-re2.h haskell_re2_setopt_encoding"
+	c_setopt_encoding :: Ptr Options -> CInt -> IO ()
 
 foreign import ccall unsafe "haskell-re2.h haskell_re2_setopt_posix_syntax"
 	c_setopt_posix_syntax :: Ptr Options -> Bool -> IO ()

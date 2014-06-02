@@ -27,6 +27,10 @@ void haskell_re2_free_options(re2::RE2_Options *opts) {
 	opts->set_##optName(val); \
 }
 
+void haskell_re2_setopt_encoding(re2::RE2_Options *opts, int val) {
+	opts->set_encoding(re2::RE2::Options::Encoding(val));
+}
+
 IMPL_SETOPT(posix_syntax, bool);
 IMPL_SETOPT(longest_match, bool);
 IMPL_SETOPT(max_mem, int64_t);

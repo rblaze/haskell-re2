@@ -20,6 +20,7 @@ tests = suite "re2"
 	, test_Replace
 	, test_ReplaceAll
 	, test_Extract
+	, test_OptionEncoding
 	, test_QuoteMeta
 	]
 
@@ -74,6 +75,16 @@ test_Extract = assertions "extract" $ do
 	$expect (equal (extract p (b "no match") (b "baz")) Nothing)
 	$expect (equal (extract p (b "foo bar foo bar") (b "baz")) (Just (b "baz")))
 	$expect (equal (extract p (b "foo bar foo bar") (b "\\1baz")) (Just (b "foobaz")))
+
+test_OptionEncoding :: Test
+test_OptionEncoding = assertions "optionEncoding" $ do
+	let utfOpts = defaultOptions
+	utfP <- $requireRight (compile utfOpts (b "^(.)"))
+	$expect (equal (extract utfP (b "\xCE\xBB") (b "\\1")) (Just (b "\xCE\xBB")))
+	
+	let latinOpts = defaultOptions { optionEncoding = EncodingLatin1 }
+	latinP <- $requireRight (compile latinOpts (b "^(.)"))
+	$expect (equal (extract latinP (b "\xCE\xBB") (b "\\1")) (Just (b "\xCE")))
 
 test_QuoteMeta :: Test
 test_QuoteMeta = assertions "quoteMeta" $ do
