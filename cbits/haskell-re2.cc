@@ -74,25 +74,25 @@ void haskell_re2_quote_meta(const char *in, int in_len, char **out, size_t *out_
 	memcpy(*out, quoted.c_str(), quoted.size());
 }
 
-char *haskell_re2_replace(re2::RE2 *regex, const char *input, const char *rewrite) {
-	std::string str(input);
-	if (re2::RE2::Replace(&str, *regex, rewrite)) {
-		char *out = (char*)malloc(str.size() + 1);
-		strcpy(out, str.c_str());
-		return out;
+bool haskell_re2_replace(re2::RE2 *regex, const char *in, size_t in_len, const char *rewrite, int rewrite_len, char **out, size_t *out_len) {
+	std::string str(in, in_len);
+	if (re2::RE2::Replace(&str, *regex, re2::StringPiece(rewrite, rewrite_len))) {
+		*out_len = str.size();
+		*out = static_cast<char*>(malloc(str.size()));
+		memcpy(*out, str.c_str(), str.size());
+		return true;
 	}
-	return NULL;
+	return false;
 }
 
-char *haskell_re2_global_replace(re2::RE2 *regex, const char *input, const char *rewrite, int *count) {
-	std::string str(input);
-	*count = re2::RE2::GlobalReplace(&str, *regex, rewrite);
+void haskell_re2_global_replace(re2::RE2 *regex, const char *in, size_t in_len, const char *rewrite, int rewrite_len, char **out, size_t *out_len, int *count) {
+	std::string str(in, in_len);
+	*count = re2::RE2::GlobalReplace(&str, *regex, re2::StringPiece(rewrite, rewrite_len));
 	if (*count > 0) {
-		char *out = (char*)malloc(str.size() + 1);
-		strcpy(out, str.c_str());
-		return out;
+		*out_len = str.size();
+		*out = static_cast<char*>(malloc(str.size()));
+		memcpy(*out, str.c_str(), str.size());
 	}
-	return NULL;
 }
 
 char *haskell_re2_extract(re2::RE2 *regex, const char *input, const char *rewrite) {

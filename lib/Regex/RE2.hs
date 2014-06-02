@@ -215,10 +215,53 @@ foreign import ccall unsafe "haskell-re2.h haskell_re2_pattern_input"
 	c_pattern_input :: Ptr Pattern -> IO CString
 
 replace :: Pattern -> B.ByteString -> B.ByteString -> (B.ByteString, Bool)
-replace = undefined
+replace (Pattern fptr) input rewrite = unsafePerformIO $
+	unsafeUseAsCStringSizeLen input $ \(inPtr, inLen) ->
+	unsafeUseAsCStringIntLen rewrite $ \(rewritePtr, rewriteLen) ->
+	alloca $ \outPtr ->
+	alloca $ \outLenPtr ->
+	withForeignPtr fptr $ \patternPtr -> do
+		replaced <- c_replace patternPtr inPtr inLen rewritePtr rewriteLen outPtr outLenPtr
+		if replaced
+			then do
+				out <- peek outPtr
+				outLen <- peek outLenPtr
+				outBytes <- unsafePackMallocCStringSizeLen out outLen
+				return (outBytes, True)
+			else return (input, False)
 
-replaceAll :: Pattern -> B.ByteString -> B.ByteString -> (B.ByteString, Integer)
-replaceAll = undefined
+foreign import ccall unsafe "haskell-re2.h haskell_re2_replace"
+	c_replace :: Ptr Pattern
+	          -> CString -> CSize -- in, in_len
+	          -> CString -> CInt  -- rewrite, rewrite_len
+	          -> Ptr CString -> Ptr CSize -- out, out_len
+	          -> IO Bool
+
+replaceAll :: Pattern -> B.ByteString -> B.ByteString -> (B.ByteString, Int)
+replaceAll (Pattern fptr) input rewrite = unsafePerformIO $
+	unsafeUseAsCStringSizeLen input $ \(inPtr, inLen) ->
+	unsafeUseAsCStringIntLen rewrite $ \(rewritePtr, rewriteLen) ->
+	alloca $ \outPtr ->
+	alloca $ \outLenPtr ->
+	alloca $ \countPtr ->
+	withForeignPtr fptr $ \patternPtr -> do
+		c_global_replace patternPtr inPtr inLen rewritePtr rewriteLen outPtr outLenPtr countPtr
+		count <- peek countPtr
+		if count > 0
+			then do
+				out <- peek outPtr
+				outLen <- peek outLenPtr
+				outBytes <- unsafePackMallocCStringSizeLen out outLen
+				return (outBytes, fromIntegral count)
+			else return (input, 0)
+
+foreign import ccall "haskell-re2.h haskell_re2_global_replace"
+	c_global_replace :: Ptr Pattern
+	                 -> CString -> CSize -- in, in_len
+	                 -> CString -> CInt -- rewrite, rewrite_len
+	                 -> Ptr CString -> Ptr CSize  -- out, out_len
+	                 -> Ptr CInt  -- count
+	                 -> IO ()
 
 extract :: Pattern -> B.ByteString -> B.ByteString -> Maybe B.ByteString
 extract = undefined
@@ -231,26 +274,34 @@ quoteMeta input = unsafePerformIO $
 		c_quote_meta inPtr inLen outPtr outLenPtr
 		out <- peek outPtr
 		outLen <- peek outLenPtr
-		unsafePackMallocCStringIntLen out outLen
+		unsafePackMallocCStringSizeLen out outLen
 
 foreign import ccall "haskell-re2.h haskell_re2_quote_meta"
 	c_quote_meta :: CString -> CInt -> Ptr CString -> Ptr CSize -> IO ()
 
 -- note: we assume that:
 --   (maxBound::Int) >= (maxBound::CInt)
---   (maxBound::Int) >= (maxBound::CSize)
+--   (maxBound::Int) <= (maxBound::CSize)
 --
 -- This is not technically correct, because the Haskell spec permits
 -- (maxBound::Int) to be as small as 2^29-1. However, it is correct in
 -- compilers such as GHC that use machine ints for Int.
-unsafePackMallocCStringIntLen :: CString -> CSize -> IO B.ByteString
 unsafeUseAsCStringIntLen :: B.ByteString -> ((CString, CInt) -> IO a) -> IO a
+unsafeUseAsCStringSizeLen :: B.ByteString -> ((CString, CSize) -> IO a) -> IO a
+unsafePackMallocCStringSizeLen :: CString -> CSize -> IO B.ByteString
 
 c_INT_MAX :: Int
 c_INT_MAX = fromIntegral (maxBound :: CInt)
+
+hs_INT_MAX :: CSize
+hs_INT_MAX = fromIntegral (maxBound :: Int)
 
 unsafeUseAsCStringIntLen bytes fn = B.unsafeUseAsCStringLen bytes (\(ptr, rawLen) -> if rawLen > c_INT_MAX
 	then error ("re2: bytestring length " ++ show rawLen ++ " exceeds INT_MAX")
 	else fn (ptr, fromIntegral rawLen))
 
-unsafePackMallocCStringIntLen ptr len = B.unsafePackMallocCStringLen (ptr, fromIntegral len)
+unsafeUseAsCStringSizeLen bytes fn = B.unsafeUseAsCStringLen bytes (\(ptr, rawLen) -> fn (ptr, fromIntegral rawLen))
+
+unsafePackMallocCStringSizeLen ptr len = if len > hs_INT_MAX
+	then error ("re2: std::string length " ++ show len ++ " exceeds (maxBound::Int)")
+	else B.unsafePackMallocCStringLen (ptr, fromIntegral len)
