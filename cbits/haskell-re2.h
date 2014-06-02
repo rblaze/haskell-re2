@@ -39,6 +39,8 @@ int haskell_re2_error_code(re2::RE2 *regex);
 
 const char *haskell_re2_pattern_input(re2::RE2 *regex);
 
+int haskell_re2_pattern_groups(re2::RE2 *regex, char ***group_names, size_t **group_name_lens);
+
 int haskell_re2_program_size(re2::RE2 *regex);
 
 void haskell_re2_quote_meta(const char *in, int in_len, char **out, size_t *out_len);

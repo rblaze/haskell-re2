@@ -3,6 +3,7 @@
 module Main where
 
 import qualified Data.ByteString.Char8 as B
+import qualified Data.Vector as V
 import           Test.Chell
 
 import           Regex.RE2
@@ -14,6 +15,7 @@ tests :: Suite
 tests = suite "re2"
 	[ test_CompileSuccess
 	, test_CompileFailure
+	, test_PatternGroups
 	, test_Replace
 	, test_ReplaceAll
 	, test_Extract
@@ -30,6 +32,15 @@ test_CompileFailure = assertions "compile.failure" $ do
 	err <- $requireLeft (compile defaultOptions (b "^f(oo$"))
 	$expect (equal (errorMessage err) "missing ): ^f(oo$")
 	$expect (equal (errorCode err) ErrorMissingParen)
+
+test_PatternGroups :: Test
+test_PatternGroups = assertions "patternGroups" $ do
+	p <- $requireRight (compile defaultOptions (b "^(foo)(?P<named1>bar)(?P<named2>baz)$"))
+	$expect (equal (patternGroups p) (V.fromList
+		[ Nothing
+		, Just (b "named1")
+		, Just (b "named2")
+		]))
 
 test_Replace :: Test
 test_Replace = assertions "replace" $ do

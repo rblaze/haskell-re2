@@ -76,6 +76,7 @@ library
       base >= 4.7 && < 5.0
     , bytestring
     , containers
+    , vector
 
   exposed-modules:
     Regex.RE2
@@ -90,3 +91,4 @@ test-suite tests
     , bytestring
     , chell >= 0.4 && < 0.5
     , containers
+    , vector

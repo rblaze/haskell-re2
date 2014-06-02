@@ -11,6 +11,7 @@ module Regex.RE2
 	, errorCode
 	, compile
 	, patternInput
+	, patternGroups
 	, replace
 	, replaceAll
 	, extract
@@ -36,6 +37,8 @@ import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Unsafe as B
 import           Data.Int
 import           Data.String (IsString, fromString)
+import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as V
 import           Foreign.C
 import           Foreign.ForeignPtr
 import           Foreign.Marshal.Alloc
@@ -213,6 +216,44 @@ patternInput (Pattern fptr) = unsafePerformIO $
 
 foreign import ccall unsafe "haskell-re2.h haskell_re2_pattern_input"
 	c_pattern_input :: Ptr Pattern -> IO CString
+
+patternGroups :: Pattern -> V.Vector (Maybe B.ByteString)
+patternGroups (Pattern fptr) = unsafePerformIO $
+	alloca $ \groupNamesPtr ->
+	alloca $ \groupNameLensPtr ->
+	withForeignPtr fptr $ \patternPtr -> do
+		count <- c_pattern_groups patternPtr groupNamesPtr groupNameLensPtr
+		if count == 0
+			then return V.empty
+			else do
+				groupNames <- peek groupNamesPtr
+				groupNameLens <- peek groupNameLensPtr
+				peekPatternGroups (fromIntegral count) groupNames groupNameLens
+
+peekPatternGroups :: Int -> Ptr CString -> Ptr CSize -> IO (V.Vector (Maybe B.ByteString))
+peekPatternGroups groupCount groupNames groupNameLens = io where
+	io = do
+		vec <- V.new groupCount
+		loop vec 0
+		c_free groupNames
+		c_free groupNameLens
+		V.freeze vec
+	loop _ idx | idx == groupCount = return ()
+	loop vec idx = do
+		cstr <- peekElemOff groupNames idx
+		if cstr == nullPtr
+			then V.write vec idx Nothing
+			else do
+				len <- peekElemOff groupNameLens idx
+				bytes <- unsafePackMallocCStringSizeLen cstr len
+				V.write vec idx (Just bytes)
+		loop vec (idx+1)
+
+foreign import ccall unsafe "stdlib.h free"
+	c_free :: Ptr a -> IO ()
+
+foreign import ccall unsafe "haskell-re2.h haskell_re2_pattern_groups"
+	c_pattern_groups :: Ptr Pattern -> Ptr (Ptr CString) -> Ptr (Ptr CSize) -> IO CInt
 
 replace :: Pattern -> B.ByteString -> B.ByteString -> (B.ByteString, Bool)
 replace (Pattern fptr) input rewrite = unsafePerformIO $
