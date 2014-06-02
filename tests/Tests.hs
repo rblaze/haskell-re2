@@ -16,6 +16,7 @@ tests = suite "re2"
 	[ test_CompileSuccess
 	, test_CompileFailure
 	, test_PatternGroups
+	, test_Find
 	, test_Replace
 	, test_ReplaceAll
 	, test_Extract
@@ -40,6 +41,19 @@ test_PatternGroups = assertions "patternGroups" $ do
 		[ Nothing
 		, Just (b "named1")
 		, Just (b "named2")
+		]))
+
+test_Find :: Test
+test_Find = assertions "find" $ do
+	p <- $requireRight (compile defaultOptions (b "(foo)|(\\d)(\\d)\\d"))
+	let found = find p (b "abc 123")
+	$assert (just found)
+	let Just match = found
+	$expect (equal (matchGroups match) (V.fromList
+		[ Just (b "123")
+		, Nothing
+		, Just (b "1")
+		, Just (b "2")
 		]))
 
 test_Replace :: Test

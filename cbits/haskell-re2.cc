@@ -132,28 +132,28 @@ bool haskell_re2_extract(re2::RE2 *regex, const char *in, int in_len, const char
 	return false;
 }
 
-char **haskell_re2_match(re2::RE2 *regex, const char *input) {
-	std::string input_str(input);
-	int capture_count = regex->NumberOfCapturingGroups();
-	int argc = capture_count+1;
-	re2::StringPiece *vec = new re2::StringPiece[argc];
-	if (regex->Match(input_str, 0, input_str.size(), re2::RE2::UNANCHORED, vec, argc)) {
-		char **args = new char*[argc+1];
-		for (int ii = 0; ii < argc; ii++) {
-			if (vec[ii].data() == NULL) {
-				args[ii] = NULL;
-			} else {
-				args[ii] = (char*)malloc(vec[ii].size() + 1);
-				strncpy(args[ii], vec[ii].data(), vec[ii].size());
-				args[ii][vec[ii].size()] = 0;
-			}
-		}
-		args[argc] = (char*)1;
+bool haskell_re2_find(re2::RE2 *regex, const char *in, int in_len, char ***captures, size_t **capture_lens, int *capture_count) {
+	int count = regex->NumberOfCapturingGroups() + 1;
+	*capture_count = count;
+	re2::StringPiece *vec = new re2::StringPiece[count];
+	if (!regex->Match(re2::StringPiece(in, in_len), 0, in_len, re2::RE2::UNANCHORED, vec, count)) {
 		delete[] vec;
-		return args;
+		return false;
+	}
+	*captures = HSRE2_MALLOC(char*, count);
+	*capture_lens = HSRE2_MALLOC(size_t, count);
+	for (int ii = 0; ii < count; ii++) {
+		if (vec[ii].data() == NULL) {
+			(*captures)[ii] = NULL;
+			(*capture_lens)[ii] = 0;
+		} else {
+			(*captures)[ii] = HSRE2_MALLOC(char, vec[ii].size());
+			(*capture_lens)[ii] = vec[ii].size();
+			memcpy((*captures)[ii], vec[ii].data(), vec[ii].size());
+		}
 	}
 	delete[] vec;
-	return NULL;
+	return true;
 }
 
 }

@@ -51,7 +51,7 @@ void haskell_re2_global_replace(re2::RE2 *regex, const char *in, size_t in_len, 
 
 bool haskell_re2_extract(re2::RE2 *regex, const char *in, int in_len, const char *rewrite, int rewrite_len, char **out, size_t *out_len);
 
-char **haskell_re2_match(re2::RE2 *regex, const char *input);
+bool haskell_re2_find(re2::RE2 *regex, const char *in, int in_len, char ***captures, size_t **capture_lens, int *capture_count);
 
 #ifdef __cplusplus
 }

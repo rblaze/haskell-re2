@@ -17,6 +17,11 @@ module Regex.RE2
 	, extract
 	, quoteMeta
 	
+	, Match
+	, matchGroup
+	, matchGroups
+	, find
+	
 	, Options
 	, defaultOptions
 	, optionPosixSyntax
@@ -254,6 +259,39 @@ foreign import ccall unsafe "stdlib.h free"
 
 foreign import ccall unsafe "haskell-re2.h haskell_re2_pattern_groups"
 	c_pattern_groups :: Ptr Pattern -> Ptr (Ptr CString) -> Ptr (Ptr CSize) -> IO CInt
+
+newtype Match = Match (V.Vector (Maybe B.ByteString))
+
+matchGroup :: Match -> Int -> Maybe B.ByteString
+matchGroup (Match vals) idx = case vals V.!? idx of
+	Nothing -> Nothing
+	Just v -> v
+
+matchGroups :: Match -> V.Vector (Maybe B.ByteString)
+matchGroups (Match vals) = vals
+
+find :: Pattern -> B.ByteString -> Maybe Match
+find (Pattern fptr) input = unsafePerformIO $
+	alloca $ \capturesPtr ->
+	alloca $ \captureLensPtr ->
+	alloca $ \captureCountPtr ->
+	unsafeUseAsCStringIntLen input $ \(inPtr, inLen) ->
+	withForeignPtr fptr $ \patternPtr -> do
+		matched <- c_find patternPtr inPtr inLen capturesPtr captureLensPtr captureCountPtr
+		if not matched
+			then return Nothing
+			else do
+				captures <- peek capturesPtr
+				captureLens <- peek captureLensPtr
+				captureCount <- peek captureCountPtr
+				vec <- peekCaptures (fromIntegral captureCount) captures captureLens
+				return (Just (Match vec))
+
+peekCaptures :: Int -> Ptr CString -> Ptr CSize -> IO (V.Vector (Maybe B.ByteString))
+peekCaptures = peekPatternGroups
+
+foreign import ccall "haskell-re2.h haskell_re2_find"
+	c_find :: Ptr Pattern -> CString -> CInt -> Ptr (Ptr CString) -> Ptr (Ptr CSize) -> Ptr CInt -> IO Bool
 
 replace :: Pattern -> B.ByteString -> B.ByteString -> (B.ByteString, Bool)
 replace (Pattern fptr) input rewrite = unsafePerformIO $
