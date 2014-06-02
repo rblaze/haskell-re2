@@ -74,8 +74,7 @@ library
   build-depends:
       -- On most platforms, loading C++ libraries requires GHC 7.8 or later.
       base >= 4.7 && < 5.0
-    , bytestring
-    , containers
+    , bytestring >= 0.10.2
     , vector
 
   exposed-modules:
@@ -90,5 +89,4 @@ test-suite tests
     , base >= 4.7 && < 5.0
     , bytestring
     , chell >= 0.4 && < 0.5
-    , containers
     , vector
