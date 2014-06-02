@@ -264,7 +264,27 @@ foreign import ccall "haskell-re2.h haskell_re2_global_replace"
 	                 -> IO ()
 
 extract :: Pattern -> B.ByteString -> B.ByteString -> Maybe B.ByteString
-extract = undefined
+extract (Pattern fptr) input rewrite = unsafePerformIO $
+	unsafeUseAsCStringIntLen input $ \(inPtr, inLen) ->
+	unsafeUseAsCStringIntLen rewrite $ \(rewritePtr, rewriteLen) ->
+	alloca $ \outPtr ->
+	alloca $ \outLenPtr ->
+	withForeignPtr fptr $ \patternPtr -> do
+		replaced <- c_extract patternPtr inPtr inLen rewritePtr rewriteLen outPtr outLenPtr
+		if replaced
+			then do
+				out <- peek outPtr
+				outLen <- peek outLenPtr
+				outBytes <- unsafePackMallocCStringSizeLen out outLen
+				return (Just outBytes)
+			else return Nothing
+
+foreign import ccall unsafe "haskell-re2.h haskell_re2_extract"
+	c_extract :: Ptr Pattern
+	          -> CString -> CInt -- in, in_len
+	          -> CString -> CInt  -- rewrite, rewrite_len
+	          -> Ptr CString -> Ptr CSize -- out, out_len
+	          -> IO Bool
 
 quoteMeta :: B.ByteString -> B.ByteString
 quoteMeta input = unsafePerformIO $

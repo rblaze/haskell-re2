@@ -47,7 +47,7 @@ bool haskell_re2_replace(re2::RE2 *regex, const char *in, size_t in_len, const c
 
 void haskell_re2_global_replace(re2::RE2 *regex, const char *in, size_t in_len, const char *rewrite, int rewrite_len, char **out, size_t *out_len, int *count);
 
-char *haskell_re2_extract(re2::RE2 *regex, const char *input, const char *rewrite);
+bool haskell_re2_extract(re2::RE2 *regex, const char *in, int in_len, const char *rewrite, int rewrite_len, char **out, size_t *out_len);
 
 char **haskell_re2_match(re2::RE2 *regex, const char *input);
 

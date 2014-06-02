@@ -16,6 +16,7 @@ tests = suite "re2"
 	, test_CompileFailure
 	, test_Replace
 	, test_ReplaceAll
+	, test_Extract
 	, test_QuoteMeta
 	]
 
@@ -41,6 +42,13 @@ test_ReplaceAll = assertions "replaceAll" $ do
 	p <- $requireRight (compile defaultOptions (b "foo"))
 	$expect (equal (replaceAll p (b "no match") (b "baz")) (b "no match", 0))
 	$expect (equal (replaceAll p (b "foo bar foo bar") (b "baz")) (b "baz bar baz bar", 2))
+
+test_Extract :: Test
+test_Extract = assertions "extract" $ do
+	p <- $requireRight (compile defaultOptions (b "(foo)"))
+	$expect (equal (extract p (b "no match") (b "baz")) Nothing)
+	$expect (equal (extract p (b "foo bar foo bar") (b "baz")) (Just (b "baz")))
+	$expect (equal (extract p (b "foo bar foo bar") (b "\\1baz")) (Just (b "foobaz")))
 
 test_QuoteMeta :: Test
 test_QuoteMeta = assertions "quoteMeta" $ do
