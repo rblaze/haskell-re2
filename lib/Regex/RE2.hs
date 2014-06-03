@@ -18,8 +18,10 @@ module Regex.RE2
 	, quoteMeta
 	
 	, Match
+	, Anchor(..)
 	, matchGroup
 	, matchGroups
+	, match
 	, find
 	
 	, Options
@@ -290,6 +292,41 @@ matchGroup (Match vals) idx = case vals V.!? idx of
 matchGroups :: Match -> V.Vector (Maybe B.ByteString)
 matchGroups (Match vals) = vals
 
+data Anchor
+	= AnchorStart
+	| AnchorBoth
+	deriving (Eq, Show)
+
+match :: Pattern
+      -> B.ByteString
+      -> Int -- ^ Start position
+      -> Int -- ^ End position
+      -> Maybe Anchor
+      -> Int -- ^ How many match groups to populate
+      -> Maybe Match
+match (Pattern fptr) input startPos endPos anchor maxCaptures = unsafePerformIO $
+	alloca $ \capturesPtr ->
+	alloca $ \captureLensPtr ->
+	alloca $ \captureCountPtr ->
+	unsafeUseAsCStringIntLen input $ \(inPtr, inLen) ->
+	withForeignPtr fptr $ \patternPtr -> do
+		let cStartPos = fromIntegral (min startPos c_INT_MAX)
+		let cEndPos = fromIntegral (min endPos c_INT_MAX)
+		let cAnchor = case anchor of
+			Nothing -> 0
+			Just AnchorStart -> 1
+			Just AnchorBoth -> 2
+		let cMaxCaptures = fromIntegral (max maxCaptures 0)
+		matched <- c_match patternPtr inPtr inLen cStartPos cEndPos cAnchor cMaxCaptures capturesPtr captureLensPtr captureCountPtr
+		if not matched
+			then return Nothing
+			else do
+				captures <- peek capturesPtr
+				captureLens <- peek captureLensPtr
+				captureCount <- peek captureCountPtr
+				vec <- peekCaptures (fromIntegral captureCount) captures captureLens
+				return (Just (Match vec))
+
 find :: Pattern -> B.ByteString -> Maybe Match
 find (Pattern fptr) input = unsafePerformIO $
 	alloca $ \capturesPtr ->
@@ -297,7 +334,7 @@ find (Pattern fptr) input = unsafePerformIO $
 	alloca $ \captureCountPtr ->
 	unsafeUseAsCStringIntLen input $ \(inPtr, inLen) ->
 	withForeignPtr fptr $ \patternPtr -> do
-		matched <- c_find patternPtr inPtr inLen capturesPtr captureLensPtr captureCountPtr
+		matched <- c_match patternPtr inPtr inLen 0 inLen 0 (-1) capturesPtr captureLensPtr captureCountPtr
 		if not matched
 			then return Nothing
 			else do
@@ -310,8 +347,15 @@ find (Pattern fptr) input = unsafePerformIO $
 peekCaptures :: Int -> Ptr CString -> Ptr CSize -> IO (V.Vector (Maybe B.ByteString))
 peekCaptures = peekPatternGroups
 
-foreign import ccall "haskell-re2.h haskell_re2_find"
-	c_find :: Ptr Pattern -> CString -> CInt -> Ptr (Ptr CString) -> Ptr (Ptr CSize) -> Ptr CInt -> IO Bool
+foreign import ccall "haskell-re2.h haskell_re2_match"
+	c_match :: Ptr Pattern
+	        -> CString -> CInt -- ^ Input
+	        -> CInt -> CInt -- ^ startpos, endpos
+	        -> CInt -- ^ anchor
+	        -> CInt -- ^ num captures, -1 to capture all groups
+	        -> Ptr (Ptr CString) -> Ptr (Ptr CSize) -- ^ Captures
+	        -> Ptr CInt -- ^ How many groups were captured
+	        -> IO Bool
 
 replace :: Pattern -> B.ByteString -> B.ByteString -> (B.ByteString, Bool)
 replace (Pattern fptr) input rewrite = unsafePerformIO $

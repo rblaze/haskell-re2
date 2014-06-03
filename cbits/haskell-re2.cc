@@ -136,17 +136,19 @@ bool haskell_re2_extract(re2::RE2 *regex, const char *in, int in_len, const char
 	return false;
 }
 
-bool haskell_re2_find(re2::RE2 *regex, const char *in, int in_len, char ***captures, size_t **capture_lens, int *capture_count) {
-	int count = regex->NumberOfCapturingGroups() + 1;
-	*capture_count = count;
-	re2::StringPiece *vec = new re2::StringPiece[count];
-	if (!regex->Match(re2::StringPiece(in, in_len), 0, in_len, re2::RE2::UNANCHORED, vec, count)) {
+bool haskell_re2_match(re2::RE2 *regex, const char *in, int in_len, int startpos, int endpos, int anchor, int num_captures, char ***captures, size_t **capture_lens, int *capture_count) {
+	if (num_captures < 0) {
+		num_captures = regex->NumberOfCapturingGroups() + 1;
+	}
+	*capture_count = num_captures;
+	re2::StringPiece *vec = new re2::StringPiece[num_captures];
+	if (!regex->Match(re2::StringPiece(in, in_len), startpos, endpos, re2::RE2::Anchor(anchor), vec, num_captures)) {
 		delete[] vec;
 		return false;
 	}
-	*captures = HSRE2_MALLOC(char*, count);
-	*capture_lens = HSRE2_MALLOC(size_t, count);
-	for (int ii = 0; ii < count; ii++) {
+	*captures = HSRE2_MALLOC(char*, num_captures);
+	*capture_lens = HSRE2_MALLOC(size_t, num_captures);
+	for (int ii = 0; ii < num_captures; ii++) {
 		if (vec[ii].data() == NULL) {
 			(*captures)[ii] = NULL;
 			(*capture_lens)[ii] = 0;

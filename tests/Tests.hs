@@ -16,6 +16,7 @@ tests = suite "re2"
 	[ test_CompileSuccess
 	, test_CompileFailure
 	, test_PatternGroups
+	, test_Match
 	, test_Find
 	, test_Replace
 	, test_ReplaceAll
@@ -44,13 +45,32 @@ test_PatternGroups = assertions "patternGroups" $ do
 		, Just (b "named2")
 		]))
 
+test_Match :: Test
+test_Match = assertions "match" $ do
+	p <- $requireRight (compile defaultOptions (b "(ba)r"))
+	do
+		let found = match p (b "foo bar") 0 (length "foo bar") Nothing 0
+		$assert (just found)
+		let Just m = found
+		$expect (equal (matchGroups m) (V.fromList []))
+	do
+		let found = match p (b "foo bar") 0 (length "foo bar") (Just AnchorStart) 0
+		$assert (nothing found)
+	do
+		let found = match p (b "foo bar") 0 (length "foo bar") Nothing 1
+		$assert (just found)
+		let Just m = found
+		$expect (equal (matchGroups m) (V.fromList
+			[ Just (b "bar")
+			]))
+
 test_Find :: Test
 test_Find = assertions "find" $ do
 	p <- $requireRight (compile defaultOptions (b "(foo)|(\\d)(\\d)\\d"))
 	let found = find p (b "abc 123")
 	$assert (just found)
-	let Just match = found
-	$expect (equal (matchGroups match) (V.fromList
+	let Just m = found
+	$expect (equal (matchGroups m) (V.fromList
 		[ Just (b "123")
 		, Nothing
 		, Just (b "1")
