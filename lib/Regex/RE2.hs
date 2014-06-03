@@ -12,6 +12,7 @@ module Regex.RE2
 	, compile
 	, compileWith
 	, patternInput
+	, patternOptions
 	, patternGroups
 	, replace
 	, replaceAll
@@ -57,10 +58,14 @@ import           Foreign.Ptr
 import           Foreign.Storable
 import           System.IO.Unsafe (unsafePerformIO)
 
-newtype Pattern = Pattern (ForeignPtr Pattern)
+data Pattern = Pattern (ForeignPtr Pattern) Options
 
 instance Show Pattern where
 	showsPrec d pattern = showParen (d > 10) (showString "Pattern " . shows (patternInput pattern))
+
+instance Eq Pattern where
+	x == y = tup x == tup y where
+		tup p = (patternInput p, patternOptions p)
 
 instance IsString Pattern where
 	fromString s = case compile (B8.pack s) of
@@ -114,6 +119,7 @@ data Options = Options
 	, optionWordBoundary :: Bool
 	, optionOneLine :: Bool
 	}
+	deriving (Eq, Show)
 
 defaultOptions :: Options
 defaultOptions = Options
@@ -202,7 +208,7 @@ compileWith opts input = unsafePerformIO $ withOptions opts $ \optsPtr -> do
 	withForeignPtr fptr $ \ptr -> do
 		errPtr <- c_error ptr
 		if errPtr == nullPtr
-			then return (Right (Pattern fptr))
+			then return (Right (Pattern fptr opts))
 			else do
 				err <- peekCString errPtr
 				errCodeInt <- c_error_code ptr
@@ -236,7 +242,7 @@ foreign import ccall unsafe "haskell-re2.h haskell_re2_error_code"
 	c_error_code :: Ptr Pattern -> IO CInt
 
 patternInput :: Pattern -> B.ByteString
-patternInput (Pattern fptr) = unsafePerformIO $
+patternInput (Pattern fptr _) = unsafePerformIO $
 	withForeignPtr fptr $ \ptr -> do
 		cstr <- c_pattern_input ptr
 		B.packCString cstr
@@ -244,8 +250,11 @@ patternInput (Pattern fptr) = unsafePerformIO $
 foreign import ccall unsafe "haskell-re2.h haskell_re2_pattern_input"
 	c_pattern_input :: Ptr Pattern -> IO CString
 
+patternOptions :: Pattern -> Options
+patternOptions (Pattern _ opts) = opts
+
 patternGroups :: Pattern -> V.Vector (Maybe B.ByteString)
-patternGroups (Pattern fptr) = unsafePerformIO $
+patternGroups (Pattern fptr _) = unsafePerformIO $
 	alloca $ \groupNamesPtr ->
 	alloca $ \groupNameLensPtr ->
 	withForeignPtr fptr $ \patternPtr -> do
@@ -308,7 +317,7 @@ match :: Pattern
       -> Maybe Anchor
       -> Int -- ^ How many match groups to populate
       -> Maybe Match
-match (Pattern fptr) input startPos endPos anchor maxCaptures = unsafePerformIO $
+match (Pattern fptr _) input startPos endPos anchor maxCaptures = unsafePerformIO $
 	alloca $ \capturesPtr ->
 	alloca $ \captureLensPtr ->
 	alloca $ \captureCountPtr ->
@@ -332,7 +341,7 @@ match (Pattern fptr) input startPos endPos anchor maxCaptures = unsafePerformIO 
 				return (Just (Match vec))
 
 find :: Pattern -> B.ByteString -> Maybe Match
-find (Pattern fptr) input = unsafePerformIO $
+find (Pattern fptr _) input = unsafePerformIO $
 	alloca $ \capturesPtr ->
 	alloca $ \captureLensPtr ->
 	alloca $ \captureCountPtr ->
@@ -362,7 +371,7 @@ foreign import ccall "haskell-re2.h haskell_re2_match"
 	        -> IO Bool
 
 replace :: Pattern -> B.ByteString -> B.ByteString -> (B.ByteString, Bool)
-replace (Pattern fptr) input rewrite = unsafePerformIO $
+replace (Pattern fptr _) input rewrite = unsafePerformIO $
 	unsafeUseAsCStringSizeLen input $ \(inPtr, inLen) ->
 	unsafeUseAsCStringIntLen rewrite $ \(rewritePtr, rewriteLen) ->
 	alloca $ \outPtr ->
@@ -385,7 +394,7 @@ foreign import ccall unsafe "haskell-re2.h haskell_re2_replace"
 	          -> IO Bool
 
 replaceAll :: Pattern -> B.ByteString -> B.ByteString -> (B.ByteString, Int)
-replaceAll (Pattern fptr) input rewrite = unsafePerformIO $
+replaceAll (Pattern fptr _) input rewrite = unsafePerformIO $
 	unsafeUseAsCStringSizeLen input $ \(inPtr, inLen) ->
 	unsafeUseAsCStringIntLen rewrite $ \(rewritePtr, rewriteLen) ->
 	alloca $ \outPtr ->
@@ -411,7 +420,7 @@ foreign import ccall "haskell-re2.h haskell_re2_global_replace"
 	                 -> IO ()
 
 extract :: Pattern -> B.ByteString -> B.ByteString -> Maybe B.ByteString
-extract (Pattern fptr) input rewrite = unsafePerformIO $
+extract (Pattern fptr _) input rewrite = unsafePerformIO $
 	unsafeUseAsCStringIntLen input $ \(inPtr, inLen) ->
 	unsafeUseAsCStringIntLen rewrite $ \(rewritePtr, rewriteLen) ->
 	alloca $ \outPtr ->
