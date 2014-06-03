@@ -1,33 +1,43 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
 -- |
+-- Module: Regex.RE2
+-- License: MIT
 --
--- TODO: write docs
+-- re2 is a regular expression library offering predictable run-time and
+-- memory consumption. This package is a binding to re2.
+--
+-- Supported expression syntax is documented at
+-- <http://code.google.com/p/re2/wiki/Syntax>.
+--
+-- >$ ghci -XOverloadedStrings
+-- >ghci> import Regex.RE2
+-- >
+-- >ghci> find "\\w+" "hello world"
+-- >Just (Match [Just "hello"])
+-- >
+-- >ghci> find "\\w+$" "hello world"
+-- >Just (Match [Just "world"])
+-- >
+-- >ghci> find "^\\w+$" "hello world"
+-- >Nothing
 module Regex.RE2
-	( Pattern
-	, Error
-	, ErrorCode(..)
-	, errorMessage
-	, errorCode
+	(
+	-- * Compiling patterns
+	  Pattern
 	, compile
 	, compileWith
+	
+	-- ** Pattern properties
 	, patternInput
 	, patternOptions
 	, patternGroups
-	, replace
-	, replaceAll
-	, extract
-	, quoteMeta
 	
-	, Match
-	, Anchor(..)
-	, matchGroup
-	, matchGroups
-	, match
-	, find
-	
+	-- ** Options
 	, Options
 	, defaultOptions
+	, Encoding(..)
+	, optionEncoding
 	, optionPosixSyntax
 	, optionLongestMatch
 	, optionMaxMemory
@@ -39,8 +49,44 @@ module Regex.RE2
 	, optionWordBoundary
 	, optionOneLine
 	
-	, Encoding(..)
-	, optionEncoding
+	-- ** Compilation errors
+	, Error
+	, ErrorCode
+		( ErrorInternal
+		, ErrorBadEscape
+		, ErrorBadCharClass
+		, ErrorBadCharRange
+		, ErrorMissingBracket
+		, ErrorMissingParen
+		, ErrorTrailingBackslash
+		, ErrorRepeatArgument
+		, ErrorRepeatSize
+		, ErrorRepeatOp
+		, ErrorBadPerlOp
+		, ErrorBadUTF8
+		, ErrorBadNamedCapture
+		, ErrorPatternTooLarge
+		)
+	, errorMessage
+	, errorCode
+	
+	-- * Matching
+	, Match
+	, matchGroup
+	, matchGroups
+	, Anchor(..)
+	, match
+	
+	-- * Searching
+	, find
+	
+	-- * Replacing
+	, replace
+	, replaceAll
+	, extract
+	
+	-- * Utility functions
+	, quoteMeta
 	) where
 
 import           Control.Exception (bracket, mask_)
@@ -58,6 +104,33 @@ import           Foreign.Ptr
 import           Foreign.Storable
 import           System.IO.Unsafe (unsafePerformIO)
 
+-- | A pattern is a compiled regular expression plus its compilation options.
+--
+-- Patterns can be created by calling 'compile' explicitly:
+--
+-- @
+--import Data.ByteString.Char8 (pack)
+--
+--p :: Pattern
+--p = case 'compile' (pack "^hello world$") of
+--        Right ok -> ok
+--        Left err -> error ("compilation error: " ++ 'errorMessage' err)
+-- @
+--
+-- Or by using the 'IsString' instance:
+--
+-- >import Data.String (fromString)
+-- >
+-- >p :: Pattern
+-- >p = fromString "^hello world$"
+--
+-- Or by using the `OverloadedStrings` language extension:
+--
+-- >{-# LANGUAGE OverloadedStrings #-}
+-- >
+-- >p :: Pattern
+-- >p = "^hello world$"
+--
 data Pattern = Pattern (ForeignPtr Pattern) Options
 
 instance Show Pattern where
@@ -90,6 +163,7 @@ data ErrorCode
 	| ErrorBadUTF8
 	| ErrorBadNamedCapture
 	| ErrorPatternTooLarge
+	| ErrorUnknown CInt
 	deriving (Eq, Show)
 
 errorCode :: Error -> ErrorCode
@@ -103,6 +177,13 @@ data Encoding
 	| EncodingLatin1
 	deriving (Eq, Show)
 
+-- | Options controlling how to compile a regular expression. The fields in
+-- this value may be set using record syntax:
+--
+-- @
+--compileNoCase :: B.ByteString -> Either Error 'Pattern'
+--compileNoCase = 'compileWith' ('defaultOptions' { 'optionCaseSensitive' = False })
+-- @
 data Options = Options
 	{ optionEncoding :: Encoding
 	, optionPosixSyntax :: Bool
@@ -114,13 +195,34 @@ data Options = Options
 	, optionNeverCapture :: Bool
 	, optionCaseSensitive :: Bool
 	
-	-- only checked in posix mode
+	-- | Only checked in posix mode
 	, optionPerlClasses :: Bool
+	
+	-- | Only checked in posix mode
 	, optionWordBoundary :: Bool
+	
+	-- | Only checked in posix mode
 	, optionOneLine :: Bool
 	}
 	deriving (Eq, Show)
 
+-- |
+-- @
+--defaultOptions = Options
+--        { optionEncoding = EncodingUtf8
+--        , optionPosixSyntax = False
+--        , optionLongestMatch = False
+--        , optionMaxMemory = 8388608  -- 8 << 20
+--        , optionLiteral = False
+--        , optionNeverNewline = False
+--        , optionDotNewline = False
+--        , optionNeverCapture = False
+--        , optionCaseSensitive = True
+--        , optionPerlClasses = False
+--        , optionWordBoundary = False
+--        , optionOneLine = False
+--        }
+-- @
 defaultOptions :: Options
 defaultOptions = Options
 	{ optionEncoding = EncodingUtf8
@@ -197,9 +299,15 @@ foreign import ccall unsafe "haskell-re2.h haskell_re2_setopt_word_boundary"
 foreign import ccall unsafe "haskell-re2.h haskell_re2_setopt_one_line"
 	c_setopt_one_line :: Ptr Options -> Bool -> IO ()
 
+-- | @compile = 'compileWith' 'defaultOptions'@
 compile :: B.ByteString -> Either Error Pattern
 compile = compileWith defaultOptions
 
+-- | Compile a regular expression with the given options. If compilation fails,
+-- the error can be inspected with 'errorMessage' and 'errorCode'.
+--
+-- Use 'optionEncoding' to select whether the input bytes should be interpreted
+-- as UTF-8 or Latin1. The default is UTF8.
 compileWith :: Options -> B.ByteString -> Either Error Pattern
 compileWith opts input = unsafePerformIO $ withOptions opts $ \optsPtr -> do
 	fptr <- mask_ $ do
@@ -213,6 +321,7 @@ compileWith opts input = unsafePerformIO $ withOptions opts $ \optsPtr -> do
 				err <- peekCString errPtr
 				errCodeInt <- c_error_code ptr
 				let errCode = case errCodeInt of
+					1 -> ErrorInternal
 					2 -> ErrorBadEscape
 					3 -> ErrorBadCharClass
 					4 -> ErrorBadCharRange
@@ -226,7 +335,7 @@ compileWith opts input = unsafePerformIO $ withOptions opts $ \optsPtr -> do
 					12 -> ErrorBadUTF8
 					13 -> ErrorBadNamedCapture
 					14 -> ErrorPatternTooLarge
-					_ -> ErrorInternal
+					_ -> ErrorUnknown errCodeInt
 				return (Left (Error errCode err))
 
 foreign import ccall unsafe "haskell-re2.h haskell_re2_compile_pattern"
@@ -241,6 +350,7 @@ foreign import ccall unsafe "haskell-re2.h haskell_re2_error"
 foreign import ccall unsafe "haskell-re2.h haskell_re2_error_code"
 	c_error_code :: Ptr Pattern -> IO CInt
 
+-- | The regular expression originally provided to 'compileWith'.
 patternInput :: Pattern -> B.ByteString
 patternInput (Pattern fptr _) = unsafePerformIO $
 	withForeignPtr fptr $ \ptr -> do
@@ -250,9 +360,15 @@ patternInput (Pattern fptr _) = unsafePerformIO $
 foreign import ccall unsafe "haskell-re2.h haskell_re2_pattern_input"
 	c_pattern_input :: Ptr Pattern -> IO CString
 
+-- | The options originally provided to 'compileWith'.
 patternOptions :: Pattern -> Options
 patternOptions (Pattern _ opts) = opts
 
+-- | The capturing groups defined within the pattern. Groups are listed
+-- from left to right, and are @Nothing@ if the group is unnamed.
+--
+-- >ghci> patternGroups "(\\d+)|(?P<word>\\w+)"
+-- >fromList [Nothing,Just "word"]
 patternGroups :: Pattern -> V.Vector (Maybe B.ByteString)
 patternGroups (Pattern fptr _) = unsafePerformIO $
 	alloca $ \groupNamesPtr ->
@@ -267,6 +383,7 @@ patternGroups (Pattern fptr _) = unsafePerformIO $
 				peekPatternGroups (fromIntegral count) groupNames groupNameLens
 
 peekPatternGroups :: Int -> Ptr CString -> Ptr CSize -> IO (V.Vector (Maybe B.ByteString))
+peekPatternGroups 0 _ _ = return V.empty
 peekPatternGroups groupCount groupNames groupNameLens = io where
 	io = do
 		vec <- V.new groupCount
@@ -291,17 +408,28 @@ foreign import ccall unsafe "stdlib.h free"
 foreign import ccall unsafe "haskell-re2.h haskell_re2_pattern_groups"
 	c_pattern_groups :: Ptr Pattern -> Ptr (Ptr CString) -> Ptr (Ptr CSize) -> IO CInt
 
+-- | A successful match of the pattern against some input. Capturing groups
+-- may be retrieved with 'matchGroup' or 'matchGroups'.
 newtype Match = Match (V.Vector (Maybe B.ByteString))
 	deriving (Eq)
 
 instance Show Match where
 	showsPrec d (Match vec) = showParen (d > 10) (showString "Match " . shows (V.toList vec))
 
+-- | The capturing group with the given index, or @Nothing@ if the group was
+-- not set in this match.
+--
+-- The entire match is group 0.
 matchGroup :: Match -> Int -> Maybe B.ByteString
 matchGroup (Match vals) idx = case vals V.!? idx of
 	Nothing -> Nothing
 	Just v -> v
 
+-- | All of the groups in the pattern, with each group being @Nothing@ if it
+-- was not set in this match. Groups are returned in the same order as
+-- 'patternGroups'.
+--
+-- The entire match is group 0.
 matchGroups :: Match -> V.Vector (Maybe B.ByteString)
 matchGroups (Match vals) = vals
 
@@ -310,6 +438,11 @@ data Anchor
 	| AnchorBoth
 	deriving (Eq, Show)
 
+-- | The most general matching function. Attempt to match the pattern to the
+-- input within the given constraints.
+--
+-- If the number of match groups to populate is 0, matching can be performed
+-- more efficiently.
 match :: Pattern
       -> B.ByteString
       -> Int -- ^ Start position
@@ -340,6 +473,7 @@ match (Pattern fptr _) input startPos endPos anchor maxCaptures = unsafePerformI
 				vec <- peekCaptures (fromIntegral captureCount) captures captureLens
 				return (Just (Match vec))
 
+-- | Attempt to find the pattern somewhere within the input.
 find :: Pattern -> B.ByteString -> Maybe Match
 find (Pattern fptr _) input = unsafePerformIO $
 	alloca $ \capturesPtr ->
@@ -370,7 +504,15 @@ foreign import ccall "haskell-re2.h haskell_re2_match"
 	        -> Ptr CInt -- ^ How many groups were captured
 	        -> IO Bool
 
-replace :: Pattern -> B.ByteString -> B.ByteString -> (B.ByteString, Bool)
+-- | Replace the first occurance of the pattern with the given replacement
+-- template. If the template contains backslash escapes such as @\\1@, the
+-- capture group with the given index will be inserted in their place.
+--
+-- Returns the new bytes, and @True@ if a replacement occured.
+replace :: Pattern
+        -> B.ByteString -- ^ Input
+        -> B.ByteString -- ^ Replacement template
+        -> (B.ByteString, Bool)
 replace (Pattern fptr _) input rewrite = unsafePerformIO $
 	unsafeUseAsCStringSizeLen input $ \(inPtr, inLen) ->
 	unsafeUseAsCStringIntLen rewrite $ \(rewritePtr, rewriteLen) ->
@@ -393,7 +535,15 @@ foreign import ccall unsafe "haskell-re2.h haskell_re2_replace"
 	          -> Ptr CString -> Ptr CSize -- out, out_len
 	          -> IO Bool
 
-replaceAll :: Pattern -> B.ByteString -> B.ByteString -> (B.ByteString, Int)
+-- | Replace every occurance of the pattern with the given replacement
+-- template. If the template contains backslash escapes such as @\\1@, the
+-- capture group with the given index will be inserted in their place.
+--
+-- Returns the new bytes, and how many replacements occured.
+replaceAll :: Pattern
+           -> B.ByteString -- ^ Input
+           -> B.ByteString -- ^ Replacement template
+           -> (B.ByteString, Int)
 replaceAll (Pattern fptr _) input rewrite = unsafePerformIO $
 	unsafeUseAsCStringSizeLen input $ \(inPtr, inLen) ->
 	unsafeUseAsCStringIntLen rewrite $ \(rewritePtr, rewriteLen) ->
@@ -419,7 +569,16 @@ foreign import ccall "haskell-re2.h haskell_re2_global_replace"
 	                 -> Ptr CInt  -- count
 	                 -> IO ()
 
-extract :: Pattern -> B.ByteString -> B.ByteString -> Maybe B.ByteString
+-- | Attempt to find the pattern somewhere within the input, and extract
+-- it using the given template. If the template contains backslash escapes
+-- such as @\\1@, the capture group with the given index will be inserted
+-- in their place.
+--
+-- Returns @Nothing@ if the pattern was not found in the input.
+extract :: Pattern
+        -> B.ByteString -- ^ Input
+        -> B.ByteString -- ^ Extraction template
+        -> Maybe B.ByteString
 extract (Pattern fptr _) input rewrite = unsafePerformIO $
 	unsafeUseAsCStringIntLen input $ \(inPtr, inLen) ->
 	unsafeUseAsCStringIntLen rewrite $ \(rewritePtr, rewriteLen) ->
@@ -442,6 +601,8 @@ foreign import ccall unsafe "haskell-re2.h haskell_re2_extract"
 	          -> Ptr CString -> Ptr CSize -- out, out_len
 	          -> IO Bool
 
+-- | Escapes bytes such that the output is a regular expression which will
+-- exactly match the input.
 quoteMeta :: B.ByteString -> B.ByteString
 quoteMeta input = unsafePerformIO $
 	unsafeUseAsCStringIntLen input $ \(inPtr, inLen) ->

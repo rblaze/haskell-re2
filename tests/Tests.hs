@@ -82,6 +82,7 @@ test_Replace = assertions "replace" $ do
 	p <- $requireRight (compile (b "foo"))
 	$expect (equal (replace p (b "no match") (b "baz")) (b "no match", False))
 	$expect (equal (replace p (b "foo bar foo bar") (b "baz")) (b "baz bar foo bar", True))
+	$expect (equal (replace p (b "foo bar foo bar") (b "b\\1az")) (b "baz bar foo bar", True))
 
 test_ReplaceAll :: Test
 test_ReplaceAll = assertions "replaceAll" $ do
