@@ -10,6 +10,7 @@ module Regex.RE2
 	, errorMessage
 	, errorCode
 	, compile
+	, compileWith
 	, patternInput
 	, patternGroups
 	, replace
@@ -62,7 +63,7 @@ instance Show Pattern where
 	showsPrec d pattern = showParen (d > 10) (showString "Pattern " . shows (patternInput pattern))
 
 instance IsString Pattern where
-	fromString s = case compile defaultOptions (B8.pack s) of
+	fromString s = case compile (B8.pack s) of
 		Left err -> error ("re2: failed to compile pattern " ++ show s ++ ": " ++ errorMessage err)
 		Right pattern -> pattern
 
@@ -190,8 +191,11 @@ foreign import ccall unsafe "haskell-re2.h haskell_re2_setopt_word_boundary"
 foreign import ccall unsafe "haskell-re2.h haskell_re2_setopt_one_line"
 	c_setopt_one_line :: Ptr Options -> Bool -> IO ()
 
-compile :: Options -> B.ByteString -> Either Error Pattern
-compile opts input = unsafePerformIO $ withOptions opts $ \optsPtr -> do
+compile :: B.ByteString -> Either Error Pattern
+compile = compileWith defaultOptions
+
+compileWith :: Options -> B.ByteString -> Either Error Pattern
+compileWith opts input = unsafePerformIO $ withOptions opts $ \optsPtr -> do
 	fptr <- mask_ $ do
 		p <- unsafeUseAsCStringIntLen input (\(inPtr, inLen) -> c_compile_pattern optsPtr inPtr inLen)
 		newForeignPtr c_delete_pattern p

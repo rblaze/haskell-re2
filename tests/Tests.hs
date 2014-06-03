@@ -27,18 +27,18 @@ tests = suite "re2"
 
 test_CompileSuccess :: Test
 test_CompileSuccess = assertions "compile.success" $ do
-	p <- $requireRight (compile defaultOptions (b "^foo$"))
+	p <- $requireRight (compile (b "^foo$"))
 	$expect (equal (patternInput p) (b "^foo$"))
 
 test_CompileFailure :: Test
 test_CompileFailure = assertions "compile.failure" $ do
-	err <- $requireLeft (compile defaultOptions (b "^f(oo$"))
+	err <- $requireLeft (compile (b "^f(oo$"))
 	$expect (equal (errorMessage err) "missing ): ^f(oo$")
 	$expect (equal (errorCode err) ErrorMissingParen)
 
 test_PatternGroups :: Test
 test_PatternGroups = assertions "patternGroups" $ do
-	p <- $requireRight (compile defaultOptions (b "^(foo)(?P<named1>bar)(?P<named2>baz)$"))
+	p <- $requireRight (compile (b "^(foo)(?P<named1>bar)(?P<named2>baz)$"))
 	$expect (equal (patternGroups p) (V.fromList
 		[ Nothing
 		, Just (b "named1")
@@ -47,7 +47,7 @@ test_PatternGroups = assertions "patternGroups" $ do
 
 test_Match :: Test
 test_Match = assertions "match" $ do
-	p <- $requireRight (compile defaultOptions (b "(ba)r"))
+	p <- $requireRight (compile (b "(ba)r"))
 	do
 		let found = match p (b "foo bar") 0 (length "foo bar") Nothing 0
 		$assert (just found)
@@ -66,7 +66,7 @@ test_Match = assertions "match" $ do
 
 test_Find :: Test
 test_Find = assertions "find" $ do
-	p <- $requireRight (compile defaultOptions (b "(foo)|(\\d)(\\d)\\d"))
+	p <- $requireRight (compile (b "(foo)|(\\d)(\\d)\\d"))
 	let found = find p (b "abc 123")
 	$assert (just found)
 	let Just m = found
@@ -79,19 +79,19 @@ test_Find = assertions "find" $ do
 
 test_Replace :: Test
 test_Replace = assertions "replace" $ do
-	p <- $requireRight (compile defaultOptions (b "foo"))
+	p <- $requireRight (compile (b "foo"))
 	$expect (equal (replace p (b "no match") (b "baz")) (b "no match", False))
 	$expect (equal (replace p (b "foo bar foo bar") (b "baz")) (b "baz bar foo bar", True))
 
 test_ReplaceAll :: Test
 test_ReplaceAll = assertions "replaceAll" $ do
-	p <- $requireRight (compile defaultOptions (b "foo"))
+	p <- $requireRight (compile (b "foo"))
 	$expect (equal (replaceAll p (b "no match") (b "baz")) (b "no match", 0))
 	$expect (equal (replaceAll p (b "foo bar foo bar") (b "baz")) (b "baz bar baz bar", 2))
 
 test_Extract :: Test
 test_Extract = assertions "extract" $ do
-	p <- $requireRight (compile defaultOptions (b "(foo)"))
+	p <- $requireRight (compile (b "(foo)"))
 	$expect (equal (extract p (b "no match") (b "baz")) Nothing)
 	$expect (equal (extract p (b "foo bar foo bar") (b "baz")) (Just (b "baz")))
 	$expect (equal (extract p (b "foo bar foo bar") (b "\\1baz")) (Just (b "foobaz")))
@@ -99,11 +99,11 @@ test_Extract = assertions "extract" $ do
 test_OptionEncoding :: Test
 test_OptionEncoding = assertions "optionEncoding" $ do
 	let utfOpts = defaultOptions
-	utfP <- $requireRight (compile utfOpts (b "^(.)"))
+	utfP <- $requireRight (compileWith utfOpts (b "^(.)"))
 	$expect (equal (extract utfP (b "\xCE\xBB") (b "\\1")) (Just (b "\xCE\xBB")))
 	
 	let latinOpts = defaultOptions { optionEncoding = EncodingLatin1 }
-	latinP <- $requireRight (compile latinOpts (b "^(.)"))
+	latinP <- $requireRight (compileWith latinOpts (b "^(.)"))
 	$expect (equal (extract latinP (b "\xCE\xBB") (b "\\1")) (Just (b "\xCE")))
 
 test_QuoteMeta :: Test
