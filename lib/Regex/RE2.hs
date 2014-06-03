@@ -277,6 +277,10 @@ foreign import ccall unsafe "haskell-re2.h haskell_re2_pattern_groups"
 	c_pattern_groups :: Ptr Pattern -> Ptr (Ptr CString) -> Ptr (Ptr CSize) -> IO CInt
 
 newtype Match = Match (V.Vector (Maybe B.ByteString))
+	deriving (Eq)
+
+instance Show Match where
+	showsPrec d (Match vec) = showParen (d > 10) (showString "Match " . shows (V.toList vec))
 
 matchGroup :: Match -> Int -> Maybe B.ByteString
 matchGroup (Match vals) idx = case vals V.!? idx of
