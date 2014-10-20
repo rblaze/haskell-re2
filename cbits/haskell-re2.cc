@@ -154,9 +154,8 @@ bool haskell_re2_match(re2::RE2 *regex, const char *in, int in_len, int startpos
 				(*captures)[ii] = NULL;
 				(*capture_lens)[ii] = 0;
 			} else {
-				(*captures)[ii] = HSRE2_MALLOC(char, vec[ii].size());
+				(*captures)[ii] = const_cast<char*>(vec[ii].data());
 				(*capture_lens)[ii] = vec[ii].size();
-				memcpy((*captures)[ii], vec[ii].data(), vec[ii].size());
 			}
 		}
 	}

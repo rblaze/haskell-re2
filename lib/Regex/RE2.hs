@@ -470,7 +470,7 @@ match (Pattern fptr _) input startPos endPos anchor maxCaptures = unsafePerformI
 				captures <- peek capturesPtr
 				captureLens <- peek captureLensPtr
 				captureCount <- peek captureCountPtr
-				vec <- peekCaptures (fromIntegral captureCount) captures captureLens
+				vec <- peekCaptures (fromIntegral captureCount) input inPtr captures captureLens
 				return (Just (Match vec))
 
 -- | Attempt to find the pattern somewhere within the input.
@@ -488,11 +488,28 @@ find (Pattern fptr _) input = unsafePerformIO $
 				captures <- peek capturesPtr
 				captureLens <- peek captureLensPtr
 				captureCount <- peek captureCountPtr
-				vec <- peekCaptures (fromIntegral captureCount) captures captureLens
+				vec <- peekCaptures (fromIntegral captureCount) input inPtr captures captureLens
 				return (Just (Match vec))
 
-peekCaptures :: Int -> Ptr CString -> Ptr CSize -> IO (V.Vector (Maybe B.ByteString))
-peekCaptures = peekPatternGroups
+peekCaptures :: Int -> B.ByteString -> CString -> Ptr CString -> Ptr CSize -> IO (V.Vector (Maybe B.ByteString))
+peekCaptures 0 _ _ _ _ = return V.empty
+peekCaptures groupCount input inPtr groupNames groupNameLens = io where
+	io = do
+		vec <- V.new groupCount
+		loop vec 0
+		c_free groupNames
+		c_free groupNameLens
+		V.freeze vec
+	loop _ idx | idx == groupCount = return ()
+	loop vec idx = do
+		cstr <- peekElemOff groupNames idx
+		if cstr == nullPtr
+			then V.write vec idx Nothing
+			else do
+				len <- peekElemOff groupNameLens idx
+				let bytes = unsafeTakeCSize len (B.unsafeDrop (minusPtr cstr inPtr) input)
+				V.write vec idx (Just bytes)
+		loop vec (idx+1)
 
 foreign import ccall "haskell-re2.h haskell_re2_match"
 	c_match :: Ptr Pattern
@@ -642,3 +659,8 @@ unsafeUseAsCStringSizeLen bytes fn = B.unsafeUseAsCStringLen bytes (\(ptr, rawLe
 unsafePackMallocCStringSizeLen ptr len = if len > hs_INT_MAX
 	then error ("re2: std::string length " ++ show len ++ " exceeds (maxBound::Int)")
 	else B.unsafePackMallocCStringLen (ptr, fromIntegral len)
+
+unsafeTakeCSize :: CSize -> B.ByteString -> B.ByteString
+unsafeTakeCSize len bytes = if len > hs_INT_MAX
+	then error ("re2: std::string length " ++ show len ++ " exceeds (maxBound::Int)")
+	else B.unsafeTake (fromIntegral len) bytes
