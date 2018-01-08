@@ -35,12 +35,6 @@ description:
 extra-source-files:
   cbits/haskell-re2.cc
   cbits/haskell-re2.h
-  third-party/re2-20140304/util/*.h
-  third-party/re2-20140304/re2/*.h
-  third-party/re2-20140304/AUTHORS
-  third-party/re2-20140304/CONTRIBUTORS
-  third-party/re2-20140304/LICENSE
-  third-party/re2-20140304/README
 
 source-repository head
   type: git
@@ -55,38 +49,11 @@ library
   hs-source-dirs: lib
   ghc-options: -Wall -O2
 
-  cc-options: -Wall -O3 -pthread -Wno-sign-compare -DNDEBUG
+  cc-options: -Wall -O3 -pthread -Wno-sign-compare -DNDEBUG -std=c++11
   c-sources:
     cbits/haskell-re2.cc
-    third-party/re2-20140304/util/arena.cc
-    third-party/re2-20140304/util/hash.cc
-    third-party/re2-20140304/util/rune.cc
-    third-party/re2-20140304/util/stringpiece.cc
-    third-party/re2-20140304/util/stringprintf.cc
-    third-party/re2-20140304/util/strutil.cc
-    third-party/re2-20140304/util/valgrind.cc
-    third-party/re2-20140304/re2/bitstate.cc
-    third-party/re2-20140304/re2/compile.cc
-    third-party/re2-20140304/re2/dfa.cc
-    third-party/re2-20140304/re2/filtered_re2.cc
-    third-party/re2-20140304/re2/mimics_pcre.cc
-    third-party/re2-20140304/re2/nfa.cc
-    third-party/re2-20140304/re2/onepass.cc
-    third-party/re2-20140304/re2/parse.cc
-    third-party/re2-20140304/re2/perl_groups.cc
-    third-party/re2-20140304/re2/prefilter.cc
-    third-party/re2-20140304/re2/prefilter_tree.cc
-    third-party/re2-20140304/re2/prog.cc
-    third-party/re2-20140304/re2/re2.cc
-    third-party/re2-20140304/re2/regexp.cc
-    third-party/re2-20140304/re2/set.cc
-    third-party/re2-20140304/re2/simplify.cc
-    third-party/re2-20140304/re2/tostring.cc
-    third-party/re2-20140304/re2/unicode_casefold.cc
-    third-party/re2-20140304/re2/unicode_groups.cc
 
-  include-dirs: third-party/re2-20140304/
-  extra-libraries: stdc++ pthread
+  extra-libraries: stdc++ pthread re2
 
   build-depends:
       -- On most platforms, loading C++ libraries requires GHC 7.8 or later.
@@ -105,5 +72,5 @@ test-suite tests
       re2
     , base >= 4.7 && < 5.0
     , bytestring
-    , chell >= 0.4 && < 0.5
+    , HUnit
     , vector

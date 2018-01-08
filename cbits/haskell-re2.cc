@@ -3,32 +3,29 @@
 #include <cstddef>
 #include <cstdlib>
 
-#include "re2/re2.h"
+#include <re2/re2.h>
+#include <re2/set.h>
 
 #define HSRE2_MALLOC(type, count) static_cast<type*>(malloc(sizeof(type)*count))
 
-namespace re2 {
-class RE2_Options : public RE2::Options {};
-}
-
 extern "C" {
 
-re2::RE2_Options *haskell_re2_alloc_options() {
-	re2::RE2_Options* opts = new re2::RE2_Options();
-	opts->set_log_errors(false);
-	return opts;
+re2::RE2::Options *haskell_re2_alloc_options() {
+  re2::RE2::Options* opts = new re2::RE2::Options();
+  opts->set_log_errors(false);
+  return opts;
 }
 
-void haskell_re2_free_options(re2::RE2_Options *opts) {
-	delete opts;
+void haskell_re2_free_options(re2::RE2::Options *opts) {
+  delete opts;
 }
 
-#define IMPL_SETOPT(optName, type) void haskell_re2_setopt_##optName(re2::RE2_Options *opts, type val) { \
-	opts->set_##optName(val); \
+#define IMPL_SETOPT(optName, type) void haskell_re2_setopt_##optName(re2::RE2::Options *opts, type val) { \
+  opts->set_##optName(val); \
 }
 
-void haskell_re2_setopt_encoding(re2::RE2_Options *opts, int val) {
-	opts->set_encoding(re2::RE2::Options::Encoding(val));
+void haskell_re2_setopt_encoding(re2::RE2::Options *opts, int val) {
+  opts->set_encoding(re2::RE2::Options::Encoding(val));
 }
 
 IMPL_SETOPT(posix_syntax, bool);
@@ -45,7 +42,7 @@ IMPL_SETOPT(one_line, bool);
 
 #undef IMPL_SETOPT
 
-re2::RE2 *haskell_re2_compile_pattern(re2::RE2_Options* opts, const char *input, int input_len) {
+re2::RE2 *haskell_re2_compile_pattern(re2::RE2::Options* opts, const char *input, int input_len) {
 	return new re2::RE2(re2::StringPiece(input, input_len), *opts);
 }
 
