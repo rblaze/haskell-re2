@@ -1,116 +1,130 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
 import qualified Data.ByteString.Char8 as B
+import Data.Maybe
 import qualified Data.Vector as V
-import           Test.Chell
+import Test.HUnit
 
-import           Regex.RE2
+import Regex.RE2
 
-main :: IO ()
-main = Test.Chell.defaultMain [tests]
+main :: IO Counts
+main = runTestTT tests
 
-tests :: Suite
-tests = suite "re2"
-	[ test_CompileSuccess
-	, test_CompileFailure
-	, test_PatternGroups
-	, test_Match
-	, test_Find
-	, test_Replace
-	, test_ReplaceAll
-	, test_Extract
-	, test_OptionEncoding
-	, test_QuoteMeta
-	]
+tests :: Test
+tests = TestList
+  [ test_CompileSuccess
+  , test_CompileFailure
+  , test_PatternGroups
+  , test_Match
+  , test_Find
+  , test_Replace
+  , test_ReplaceAll
+  , test_Extract
+  , test_OptionEncoding
+  , test_QuoteMeta
+  ]
 
 test_CompileSuccess :: Test
-test_CompileSuccess = assertions "compile.success" $ do
-	p <- $requireRight (compile (b "^foo$"))
-	$expect (equal (patternInput p) (b "^foo$"))
+test_CompileSuccess = TestLabel "compile.success" $ TestCase $
+  compT (compile (b "^foo$")) $ \p ->
+    assertEqual "compiled" (patternInput p) (b "^foo$")
 
 test_CompileFailure :: Test
-test_CompileFailure = assertions "compile.failure" $ do
-	err <- $requireLeft (compile (b "^f(oo$"))
-	$expect (equal (errorMessage err) "missing ): ^f(oo$")
-	$expect (equal (errorCode err) ErrorMissingParen)
+test_CompileFailure = TestLabel "compile.failure" $ TestCase $
+  case compile (b "^f(oo$") of
+    Right _ -> assertBool "should not compile" False
+    Left err -> do
+      assertEqual "err message" (errorMessage err) "missing ): ^f(oo$"
+      assertEqual "err code" (errorCode err) ErrorMissingParen
 
 test_PatternGroups :: Test
-test_PatternGroups = assertions "patternGroups" $ do
-	p <- $requireRight (compile (b "^(foo)(?P<named1>bar)(?P<named2>baz)$"))
-	$expect (equal (patternGroups p) (V.fromList
-		[ Nothing
-		, Just (b "named1")
-		, Just (b "named2")
-		]))
+test_PatternGroups = TestLabel "patternGroups" $ TestCase $
+  compT (compile (b "^(foo)(?P<named1>bar)(?P<named2>baz)$")) $ \p ->
+    assertEqual "groups" (patternGroups p)
+      (V.fromList
+        [ Nothing
+        , Just (b "named1")
+        , Just (b "named2")
+        ])
 
 test_Match :: Test
-test_Match = assertions "match" $ do
-	p <- $requireRight (compile (b "(ba)r"))
-	do
-		let found = match p (b "foo bar") 0 (length "foo bar") Nothing 0
-		$assert (just found)
-		let Just m = found
-		$expect (equal (matchGroups m) (V.fromList []))
-	do
-		let found = match p (b "foo bar") 0 (length "foo bar") (Just AnchorStart) 0
-		$assert (nothing found)
-	do
-		let found = match p (b "foo bar") 0 (length "foo bar") Nothing 1
-		$assert (just found)
-		let Just m = found
-		$expect (equal (matchGroups m) (V.fromList
-			[ Just (b "bar")
-			]))
+test_Match = TestLabel "match" $ TestCase $
+  compT (compile (b "(ba)r")) $ \p -> do
+    case match p (b foobar) 0 (length foobar) Nothing 0 of
+      Nothing -> assertBool "should have matched" False
+      Just m -> assertEqual "match" (matchGroups m) (V.fromList [])
+
+    let found = match p (b foobar) 0 (length foobar) (Just AnchorStart) 0
+    assertBool "no match" (isNothing found)
+
+    case match p (b foobar) 0 (length foobar) Nothing 1 of
+      Nothing -> assertBool "should have matched" True
+      Just m ->
+        assertEqual "match" (matchGroups m)
+        (V.fromList
+            [ Just (b "bar")
+            ])
+  where
+    foobar :: String
+    foobar = "foo bar"
 
 test_Find :: Test
-test_Find = assertions "find" $ do
-	p <- $requireRight (compile (b "(foo)|(\\d)(\\d)\\d"))
-	let found = find p (b "abc 123")
-	$assert (just found)
-	let Just m = found
-	$expect (equal (matchGroups m) (V.fromList
-		[ Just (b "123")
-		, Nothing
-		, Just (b "1")
-		, Just (b "2")
-		]))
+test_Find = TestLabel "find" $ TestCase $
+  compT (compile (b "(foo)|(\\d)(\\d)\\d")) $ \p ->
+    case find p (b "abc 123") of
+      Nothing -> assertBool "should have matched" False
+      Just m -> assertEqual "match" (matchGroups m)
+        (V.fromList
+          [ Just (b "123")
+          , Nothing
+          , Just (b "1")
+          , Just (b "2")
+          ])
 
 test_Replace :: Test
-test_Replace = assertions "replace" $ do
-	p <- $requireRight (compile (b "foo"))
-	$expect (equal (replace p (b "no match") (b "baz")) (b "no match", False))
-	$expect (equal (replace p (b "foo bar foo bar") (b "baz")) (b "baz bar foo bar", True))
-	$expect (equal (replace p (b "foo bar foo bar") (b "b\\1az")) (b "baz bar foo bar", True))
+test_Replace = TestLabel "replace" $ TestCase $
+  compT (compile (b "foo")) $ \p -> do
+    assertEqual "no match" (replace p (b "no match") (b "baz")) (b "no match", False)
+    assertEqual "replacement" (replace p (b "foo bar foo bar") (b "baz")) (b "baz bar foo bar", True)
+    assertEqual "escaped" (replace p (b "foo bar foo bar") (b "b\\1az")) (b "baz bar foo bar", True)
 
 test_ReplaceAll :: Test
-test_ReplaceAll = assertions "replaceAll" $ do
-	p <- $requireRight (compile (b "foo"))
-	$expect (equal (replaceAll p (b "no match") (b "baz")) (b "no match", 0))
-	$expect (equal (replaceAll p (b "foo bar foo bar") (b "baz")) (b "baz bar baz bar", 2))
+test_ReplaceAll = TestLabel "replaceAll" $ TestCase $
+  compT (compile (b "foo")) $ \p -> do
+    assertEqual "no match" (replaceAll p (b "no match") (b "baz")) (b "no match", 0)
+    assertEqual "replacement" (replaceAll p (b "foo bar foo bar") (b "baz")) (b "baz bar baz bar", 2)
 
 test_Extract :: Test
-test_Extract = assertions "extract" $ do
-	p <- $requireRight (compile (b "(foo)"))
-	$expect (equal (extract p (b "no match") (b "baz")) Nothing)
-	$expect (equal (extract p (b "foo bar foo bar") (b "baz")) (Just (b "baz")))
-	$expect (equal (extract p (b "foo bar foo bar") (b "\\1baz")) (Just (b "foobaz")))
+test_Extract = TestLabel "extract" $ TestCase $
+  compT (compile (b "(foo)")) $ \p -> do
+    assertEqual "no match" (extract p (b "no match") (b "baz")) Nothing
+    assertEqual "replacement" (extract p (b "foo bar foo bar") (b "baz")) (Just (b "baz"))
+    assertEqual "escaped" (extract p (b "foo bar foo bar") (b "\\1baz")) (Just (b "foobaz"))
 
 test_OptionEncoding :: Test
-test_OptionEncoding = assertions "optionEncoding" $ do
-	let utfOpts = defaultOptions
-	utfP <- $requireRight (compileWith utfOpts (b "^(.)"))
-	$expect (equal (extract utfP (b "\xCE\xBB") (b "\\1")) (Just (b "\xCE\xBB")))
-	
-	let latinOpts = defaultOptions { optionEncoding = EncodingLatin1 }
-	latinP <- $requireRight (compileWith latinOpts (b "^(.)"))
-	$expect (equal (extract latinP (b "\xCE\xBB") (b "\\1")) (Just (b "\xCE")))
+test_OptionEncoding = TestLabel "optionEncoding" $ TestCase $ do
+  compT (compileWith utfOpts (b "^(.)")) $ \utfP ->
+    assertEqual "utf" (extract utfP (b "\xCE\xBB") (b "\\1")) (Just (b "\xCE\xBB"))
+
+  compT (compileWith latinOpts (b "^(.)")) $ \latinP ->
+    assertEqual "latin" (extract latinP (b "\xCE\xBB") (b "\\1")) (Just (b "\xCE"))
+    
+  where
+    utfOpts = defaultOptions
+    latinOpts = defaultOptions { optionEncoding = EncodingLatin1 }
 
 test_QuoteMeta :: Test
-test_QuoteMeta = assertions "quoteMeta" $ do
-	$expect (equal (quoteMeta (b "^foo$")) (b "\\^foo\\$"))
-	$expect (equal (quoteMeta (b "^f\NULoo$")) (b "\\^f\\x00oo\\$"))
+test_QuoteMeta = TestLabel "quoteMeta" $ TestCase $ do
+  assertEqual "quote" (quoteMeta (b "^foo$")) (b "\\^foo\\$")
+  assertEqual "escaped" (quoteMeta (b "^f\NULoo$")) (b "\\^f\\x00oo\\$")
 
 b :: String -> B.ByteString
 b = B.pack
+
+compT :: Either Error Pattern -> (Pattern -> IO ()) -> IO ()
+compT r act =
+  case r of
+    Left _ -> assertBool "should have compiled" False
+    Right p -> act p
