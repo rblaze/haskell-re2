@@ -137,7 +137,16 @@ before_install:
 
 # We want to always allow newer versions of packages when building on GHC HEAD
 - CABALARGS=""
-- if [ "x$GHCVER" = "xhead" ]; then CABALARGS=--allow-newer; fi
+- if [ "x$GHCVER" = "xhead" ]; then CABALARGS="--allow-newer"; fi
+
+# Build re2
+- |
+  if [ `uname` != "Darwin" ]
+  then
+    ./install-re2.sh
+    CABALARGS="${CABALARGS} --extra-lib-dirs=`pwd`/google-re2/obj/so --extra-include-dirs=`pwd`/google-re2"
+    export LD_LIBRARY_PATH="${LD_LIBRARY_LATH}:`pwd`/google-re2/obj/so"
+  fi
 
 # Download and unpack the stack executable
 - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.local/bin:/opt/alex/$ALEXVER/bin:/opt/happy/$HAPPYVER/bin:$HOME/.cabal/bin:$PATH
@@ -194,7 +203,7 @@ script:
   set -ex
   case "$BUILD" in
     stack)
-      stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps
+      stack --no-terminal $ARGS test --bench --no-run-benchmarks --haddock --no-haddock-deps --extra-lib-dirs=`pwd`/google-re2/obj/so --extra-include-dirs=`pwd`/google-re2
       ;;
     cabal)
       cabal install --enable-tests --enable-benchmarks --force-reinstalls --ghc-options=-O0 --reorder-goals --max-backjumps=-1 $CABALARGS $PACKAGES
