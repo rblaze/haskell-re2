@@ -1,2 +1,4 @@
 .stack-work
 dist
+/google-re2*/
+/source.tar.gz
