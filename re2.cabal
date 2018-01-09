@@ -40,9 +40,9 @@ source-repository head
 
 library
   hs-source-dirs: lib
-  ghc-options: -Wall -O2
+  ghc-options: -Wall
 
-  cc-options: -Wall -O3 -pthread -Wno-sign-compare -DNDEBUG -std=c++11
+  cc-options: -Wall -pthread -Wno-sign-compare -DNDEBUG -std=c++11
   c-sources:
     cbits/haskell-re2.cc
 
@@ -60,7 +60,7 @@ library
 test-suite tests
   type: exitcode-stdio-1.0
   main-is: tests/Tests.hs
-  ghc-options: -Wall -O2
+  ghc-options: -Wall
   build-depends:
       re2
     , base >= 4.7 && < 5.0
