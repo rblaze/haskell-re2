@@ -145,7 +145,7 @@ before_install:
   then
     brew install re2
   else
-    ./install-re2.sh
+    travis_retry ./install-re2.sh || exit 1
     CABALARGS="${CABALARGS} --extra-lib-dirs=`pwd`/google-re2/obj/so --extra-include-dirs=`pwd`/google-re2"
     export LD_LIBRARY_PATH="${LD_LIBRARY_LATH}:`pwd`/google-re2/obj/so"
   fi
