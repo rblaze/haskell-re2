@@ -141,8 +141,10 @@ before_install:
 
 # Build re2
 - |
-  if [ `uname` != "Darwin" ]
+  if [ `uname` = "Darwin" ]
   then
+    brew install re2
+  else
     ./install-re2.sh
     CABALARGS="${CABALARGS} --extra-lib-dirs=`pwd`/google-re2/obj/so --extra-include-dirs=`pwd`/google-re2"
     export LD_LIBRARY_PATH="${LD_LIBRARY_LATH}:`pwd`/google-re2/obj/so"
