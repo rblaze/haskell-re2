@@ -43,6 +43,7 @@ module Regex.RE2
     , optionMaxMemory
     , optionLiteral
     , optionNeverNewline
+    , optionDotNewline
     , optionNeverCapture
     , optionCaseSensitive
     , optionPerlClasses
